@@ -13,6 +13,7 @@ from datetime import datetime
 import sys
 
 import pyaudio
+import tkinter as tk
 import win32con
 import win32gui
 import winreg
@@ -21,8 +22,6 @@ import win32process
 from screeninfo import get_monitors
 import pyautogui
 import audioop
-import asyncio
-from winsdk.windows.media.control import GlobalSystemMediaTransportControlsSessionManager
 
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume, IAudioMeterInformation
@@ -38,19 +37,17 @@ from dotenv import load_dotenv
 
 import requests
 
-from gui import CreateBackground, root, ShowMusicOverlay, StartGUILoop, ShowSystemInfoGraph
-
 def ensure_ollama():
     try:
         requests.get("http://localhost:11434")
     except:
-        subprocess.Popen(["ollama", "serve"])
+        process = subprocess.Popen(["ollama", "serve"])
         time.sleep(2)
 
 ensure_ollama()
 
 
-name = "Peter"
+name = "Jarvis"
 not_wanted_wake_words = ["ja"]
 debug = False
 
@@ -621,6 +618,87 @@ def handle_window(window, hwnd, command):
 # OVERLAY (tkinter)
 # ─────────────────────────────────────────────────────────────────────────────
 
+root = tk.Tk()
+root.overrideredirect(True)
+root.attributes("-topmost", True)
+root.attributes("-transparentcolor", "black")
+root.configure(bg="#0a0a0a")
+root.attributes("-alpha", 1.0)
+root.geometry(f"{root.winfo_screenwidth()}x{root.winfo_screenheight()}+0+0")
+root.wm_attributes("-disabled", True)
+
+canvas        = tk.Canvas(root, bg="black", highlightthickness=0)
+canvas.pack(fill="both", expand=True)
+#overlay_label = canvas.create_text(960, 50, text=f"{name} hört zu...", fill="white", font=("Arial", 28, "bold"))
+
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+
+capsule_radius = 100
+
+first_ring_radius = 130
+second_ring_radius = 195
+cx = screen_width - 35 - first_ring_radius / 2
+cy = 35 + first_ring_radius / 2
+
+first_ring_indicator_inner_radius = 75
+first_ring_indicator_outer_radius = 85
+num_lines = 20
+center_of_jarvis_x = screen_width - 50 - (.5 * capsule_radius)
+center_of_jarvis_y = 50 + capsule_radius/2
+
+dot_radius = 10
+
+#capsule = canvas.create_rectangle(screen_width/2 - capsule_width/2, 50, screen_width/2 + capsule_width/2, capsule_radius, outline="blue", width=3)
+capsule = canvas.create_oval(screen_width - 50 - capsule_radius, 50, screen_width - 50, 50 + capsule_radius, fill="#0088ff")
+first_ring = canvas.create_arc(
+    cx - first_ring_radius / 2, cy - first_ring_radius / 2,
+    cx + first_ring_radius / 2, cy + first_ring_radius / 2,
+    start=0, extent=180, style=tk.ARC, outline="#0088ff", width=3
+)
+
+second_ring = canvas.create_arc(
+    cx - second_ring_radius / 2, cy - second_ring_radius / 2,
+    cx + second_ring_radius / 2, cy + second_ring_radius / 2,
+    start=0, extent=300, style=tk.ARC, outline="#00ccff", width=3
+)
+
+first_ring_indicators = []
+
+for i in range(num_lines):
+    angle = math.radians(i * (360 / num_lines))
+    x1 = center_of_jarvis_x + first_ring_indicator_inner_radius * math.cos(angle)
+    y1 = center_of_jarvis_y + first_ring_indicator_inner_radius * math.sin(angle)
+    x2 = center_of_jarvis_x + first_ring_indicator_outer_radius * math.cos(angle)
+    y2 = center_of_jarvis_y + first_ring_indicator_outer_radius * math.sin(angle)
+    if i == num_lines * .25 or i == num_lines *.5 or i == num_lines *.75 or i == num_lines:
+        first_ring_indicator = canvas.create_line(x1, y1, x2, y2, fill="#00ccff", width=5)
+    else:
+        first_ring_indicator = canvas.create_line(x1, y1, x2, y2, fill="#00aaff", width=2)
+    first_ring_indicators.append(first_ring_indicator)
+
+
+center_dot = canvas.create_oval(
+    center_of_jarvis_x - dot_radius,
+    center_of_jarvis_y - dot_radius,
+    center_of_jarvis_x + dot_radius,
+    center_of_jarvis_y + dot_radius,
+    fill="white"
+)
+
+center_outline = canvas.create_oval(
+    center_of_jarvis_x - capsule_radius/2,
+    center_of_jarvis_y - capsule_radius/2,
+    center_of_jarvis_x + capsule_radius/2,
+    center_of_jarvis_y + capsule_radius/2,
+    outline="#00ccff",
+    width=3
+)
+
+reset_pending = False
+reset_time    = 0
+
+
 def show_status(text):
     global reset_pending, reset_time
     #canvas.itemconfig(overlay_label, text=text)
@@ -634,7 +712,7 @@ def show_status(text):
 
 offset = 0
 
-"""def ChangeInnerCircle(color):
+def ChangeInnerCircle(color):
     canvas.itemconfig(capsule)
 
 def ChangeFirstRing(current_ring_angle, speed_of_ring, color):
@@ -653,20 +731,11 @@ def ChangeFirstRingIndicators(volume, index, rotation):
         canvas.coords(first_ring_indicators[i], x1, y1, x2, y2)
 
 def ChangeSecondRing(current_ring_angle, speed_of_ring):
-    canvas.itemconfig(second_ring, start=current_ring_angle + speed_of_ring)"""
+    canvas.itemconfig(second_ring, start=current_ring_angle + speed_of_ring)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Command-HANDLER
 # ─────────────────────────────────────────────────────────────────────────────
-async def get_media():
-    sessions = await GlobalSystemMediaTransportControlsSessionManager.request_async()
-    session = sessions.get_current_session()
-    
-    if session:
-        info = await session.try_get_media_properties_async()
-        ShowMusicOverlay(info.title, info.artist)
-    else:
-        print("Nothing playing")
 
 def handle_easter_egg(command):
     print("Alles klar Boss, 5 gegen Willi aktiv!")
@@ -831,20 +900,14 @@ def handle_media(command):
     if "nächstes lied" in cmd_low or "nächster track" in cmd_low or "skip" in cmd_low:
         show_status("Nächstes Lied ⏭")
         press_key(VK_MEDIA_NEXT_TRACK)
-        time.sleep(0.5)
-        asyncio.run(get_media())
         return True
     elif "vorheriges lied" in cmd_low or "vorheriger track" in cmd_low or "back" in cmd_low:
         show_status("Vorheriges Lied ⏮")
         press_key(VK_MEDIA_PREV_TRACK)
-        time.sleep(0.5)
-        asyncio.run(get_media())
         return True
     elif "pause" in cmd_low or "play" in cmd_low:
         show_status("Play/Pause ⏯")
         press_key(VK_MEDIA_PLAY_PAUSE)
-        time.sleep(0.5)
-        asyncio.run(get_media())
         return True
     return False
 
@@ -1054,32 +1117,30 @@ def log(text):
 def main_loop():
     global speed_of_wave, last_time_talking_to_jarvis, last_time_talking_delta, current_jarvis_mode
 
-    CreateBackground()
-    asyncio.run(get_media())
-    ShowSystemInfoGraph()
-    StartGUILoop()
-
     speak_to_me(f"Hallo ich bin {name}, dein persönlicher Assistent. Sage {name} um ihn zu aktivieren.")
 
-    lastSongCheck = time.time()
     while True:
-        if time.time() - lastSongCheck > 5:
-            asyncio.run(get_media())
-            lastSongCheck = time.time()
+        # Overlay-Reset nach 1 Sekunde
+        global reset_pending, reset_time
+        if reset_pending and time.time() >= reset_time:
+            reset_pending = False
 
         text = record_text()
+        if text:
+            pass
 
         isAwakening, position = is_wake_word(text)
 
         if isAwakening:
-            print("[DEBUG] Wake word erkannt!")
             last_time_talking_to_jarvis = datetime.now()
             if current_jarvis_mode != "sleeping":
                 command = " ".join(text.strip().split()[position + 1:])
                 print("Command:", command)
+                root.after(0, lambda c=command: show_status(f"Befehl: {c}"))  # GUI im Hauptthread
 
                 running = dispatch_command(command)
                 if not running:
+                    root.quit()
                     break
 
 # Thread starten
@@ -1088,4 +1149,79 @@ threading.Thread(target=main_loop, daemon=True).start()
 # waveAnim NICHT in Thread – direkt mit after() aufrufen
 current_jarvis_mode = "idle" #"idle". "speaking", "listening"
 
-root.mainloop()
+def waveAnim():
+    global offset
+    global speed_of_wave
+    global current_jarvis_mode
+    global last_time_talking_to_jarvis, last_time_talking_delta
+    global activeIndexForInnerIndicator
+    global direction_while_talking, direction_while_talking_jarvis
+
+    cursor_x, cursor_y = pyautogui.position()
+    if cursor_x < 1713 and cursor_y > 206:
+        root.attributes("-alpha", 1)
+    elif cursor_x > 1713 and cursor_y < 206:
+        root.attributes("-alpha", .2)
+
+    #calculate index
+    if activeIndexForInnerIndicator <= len(first_ring_indicators) - 2:
+        activeIndexForInnerIndicator += 1
+    else:
+        activeIndexForInnerIndicator = 0
+
+    if tts_volume_level < .2:
+        direction_while_talking_jarvis *= -1
+
+    current_ring_angle_outer = float(canvas.itemcget(second_ring, "start"))
+    if not isSpeaking:
+        if current_volume > .004:
+            current_jarvis_mode = "listening"
+            offset_speed = 5
+        else:
+            current_jarvis_mode = "idle"
+            offset_speed = 1
+            direction_while_talking = direction_while_talking * -1
+
+        last_time_talking_delta = datetime.now() - last_time_talking_to_jarvis
+        if last_time_talking_delta.total_seconds() > sleepingInterval:
+            current_jarvis_mode = "sleeping"
+    else:
+        ChangeSecondRing(current_ring_angle_outer, tts_volume_level * 50 * direction_while_talking_jarvis)
+        current_jarvis_mode = "speaking"
+
+    current_ring_angle = float(canvas.itemcget(first_ring, "start"))
+    if current_jarvis_mode == "idle":
+        color = "blue"
+
+        ChangeFirstRing(current_ring_angle, 3, color)
+        ChangeSecondRing(current_ring_angle_outer, -.5)
+        ChangeInnerCircle(color)
+
+        ChangeFirstRingIndicators(current_volume, activeIndexForInnerIndicator, -current_ring_angle_outer)
+    elif current_jarvis_mode == "listening":
+        color = "blue"
+
+        ChangeFirstRing(current_ring_angle, current_volume * 1000 * direction_while_talking, "blue")
+        ChangeInnerCircle(color)
+
+        ChangeFirstRingIndicators(current_volume, activeIndexForInnerIndicator, -current_ring_angle_outer)
+        
+    elif current_jarvis_mode == "speaking":
+        color = "blue"
+
+        ChangeFirstRing(current_ring_angle, 0, "blue")
+        ChangeInnerCircle(color)
+
+        ChangeFirstRingIndicators(current_volume, activeIndexForInnerIndicator, -current_ring_angle_outer)
+    elif current_jarvis_mode == "sleeping":
+        color = "blue"
+
+        ChangeFirstRing(current_ring_angle, 0, "blue")
+        ChangeInnerCircle(color)
+
+        ChangeFirstRingIndicators(current_volume, activeIndexForInnerIndicator, -current_ring_angle_outer)
+
+    root.after(30, waveAnim)
+
+waveAnim()  # einmal starten, dann läuft es von alleine
+root.mainloop()  # Hauptthread gehört nur noch tkinter
