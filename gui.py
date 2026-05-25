@@ -9,6 +9,8 @@ import GPUtil
 devMode = True
 text_main_color  = "#00ccff"
 gpu_graph_color = "#ff000d"
+ram_graph_color = "#00ff1a"
+cpu_graph_color = "#1a00ff"
 
 root = tk.Tk()
 root.title("Jarvis")
@@ -101,7 +103,23 @@ for i in range(graph_size):
     gpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
 
 for i in range(graph_size - 1):
-    gpu_graph_lines.append(canvas.create_line(gpu_graph_points[i][0], gpu_graph_points[i][1], gpu_graph_points[i + 1][0], gpu_graph_points[i + 1][1], fill=gpu_graph_color, width=2, tags="info_axis"))
+    gpu_graph_lines.append(canvas.create_line(gpu_graph_points[i][0], gpu_graph_points[i][1], gpu_graph_points[i + 1][0], gpu_graph_points[i + 1][1], fill=gpu_graph_color, width=1, tags="info_axis"))
+
+ram_graph_points = []
+ram_graph_lines = []
+for i in range(graph_size):
+    ram_graph_points.append([screen_width - 300 + graph_size - i, 400])
+
+for i in range(graph_size - 1):
+    ram_graph_lines.append(canvas.create_line(ram_graph_points[i][0], ram_graph_points[i][1], ram_graph_points[i + 1][0], ram_graph_points[i + 1][1], fill=ram_graph_color, width=1, tags="info_axis"))
+
+cpu_graph_points = []
+cpu_graph_lines = []
+for i in range(graph_size):
+    cpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
+
+for i in range(graph_size - 1):
+    cpu_graph_lines.append(canvas.create_line(cpu_graph_points[i][0], cpu_graph_points[i][1], cpu_graph_points[i + 1][0], cpu_graph_points[i + 1][1], fill=cpu_graph_color, width=1, tags="info_axis"))
 
 cpu = None
 ram = None
@@ -123,10 +141,38 @@ def UpdateSystemInfoGraph():
     print("[DEBUG] Updating system info graph...")
 
     # CPU
-    #cpu = psutil.cpu_percent(interval=1)
+    cpu = psutil.cpu_percent(interval=1)
+
+    # Use the current x-axis y position as the baseline instead of hardcoded 400
+    baseline_y = canvas.coords(info_x_axis)[1]  # y1 of the x-axis line
+
+    new_y = baseline_y - (cpu / 100 * graph_size)
+
+    for i in range(len(cpu_graph_points) - 1, 0, -1):
+        cpu_graph_points[i][1] = cpu_graph_points[i - 1][1]
+    cpu_graph_points[0][1] = new_y
+
+    for i in range(len(cpu_graph_lines)):
+        canvas.coords(cpu_graph_lines[i],
+                  cpu_graph_points[i][0], cpu_graph_points[i][1],
+                  cpu_graph_points[i+1][0], cpu_graph_points[i+1][1])
 
     # RAM
-    #ram = psutil.virtual_memory()
+    ram = psutil.virtual_memory()
+
+    # Use the current x-axis y position as the baseline instead of hardcoded 400
+    baseline_y = canvas.coords(info_x_axis)[1]  # y1 of the x-axis line
+
+    new_y = baseline_y - (ram.percent / 100 * graph_size)
+
+    for i in range(len(ram_graph_points) - 1, 0, -1):
+        ram_graph_points[i][1] = ram_graph_points[i - 1][1]
+    ram_graph_points[0][1] = new_y
+
+    for i in range(len(ram_graph_lines)):
+        canvas.coords(ram_graph_lines[i],
+                  ram_graph_points[i][0], ram_graph_points[i][1],
+                  ram_graph_points[i+1][0], ram_graph_points[i+1][1])
 
     # GPU
     gpus = GPUtil.getGPUs()
@@ -134,7 +180,7 @@ def UpdateSystemInfoGraph():
     # Use the current x-axis y position as the baseline instead of hardcoded 400
     baseline_y = canvas.coords(info_x_axis)[1]  # y1 of the x-axis line
 
-    new_y = baseline_y - (gpus[0].load * graph_size * 2)
+    new_y = baseline_y - (gpus[0].load * graph_size)
 
     for i in range(len(gpu_graph_points) - 1, 0, -1):
         gpu_graph_points[i][1] = gpu_graph_points[i - 1][1]
@@ -186,6 +232,16 @@ def MoveOverlay(self):
 
             # Keep gpu_graph_points in sync with the visual position
             for point in gpu_graph_points:
+                point[0] += dx
+                point[1] += dy
+
+            # Keep cpu_graph_points in sync with the visual position
+            for point in cpu_graph_points:
+                point[0] += dx
+                point[1] += dy
+
+            # Keep ram_graph_points in sync with the visual position
+            for point in ram_graph_points:
                 point[0] += dx
                 point[1] += dy
 
