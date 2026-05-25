@@ -1,4 +1,6 @@
 import math
+import random
+import time
 import tkinter as tk
 
 import psutil
@@ -6,6 +8,7 @@ import GPUtil
 
 devMode = True
 text_main_color  = "#00ccff"
+gpu_graph_color = "#ff000d"
 
 root = tk.Tk()
 root.title("Jarvis")
@@ -67,7 +70,7 @@ def CreateBackground():
         y1 = y
         x2 = screen_width
         y2 = y
-        bgLine = canvas.create_line(x1, y1, x2, y2, fill="#303030", width=2)
+        bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
 
     for i in range(howManyBackgroundLines):
         x = i * (screen_width / howManyBackgroundLines)
@@ -75,7 +78,7 @@ def CreateBackground():
         y1 = 0
         x2 = x
         y2 = screen_height
-        bgLine = canvas.create_line(x1, y1, x2, y2, fill="#303030", width=2)
+        bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
 
 overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"))
 musicBox_outline = canvas.create_rectangle(screen_width/2 - 200, 20, screen_width/2 + 200, 80, outline=text_main_color, width=1)
@@ -93,25 +96,17 @@ info_y_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300, 40
 info_x_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300 + graph_size, 400, fill=text_main_color, width=2, tags="info_axis")
 
 gpu_graph_points = []
+gpu_graph_lines = []
 for i in range(graph_size):
-    gpu_graph_points.append([screen_width - 300 + i, 400])
+    gpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
 
+for i in range(graph_size - 1):
+    gpu_graph_lines.append(canvas.create_line(gpu_graph_points[i][0], gpu_graph_points[i][1], gpu_graph_points[i + 1][0], gpu_graph_points[i + 1][1], fill=gpu_graph_color, width=2, tags="info_axis"))
+
+cpu = None
+ram = None
+gpu = None
 def ShowSystemInfoGraph():
-    # CPU
-    cpu = psutil.cpu_percent(interval=1)
-    print(f"CPU: {cpu}%")
-
-    # RAM
-    ram = psutil.virtual_memory()
-    print(f"RAM: {ram.percent}%")
-
-    # GPU
-    gpus = GPUtil.getGPUs()
-    for gpu in gpus:
-        print(f"GPU: {gpu.load * 100:.1f}%")
-        print(f"VRAM: {gpu.memoryUtil * 100:.1f}%")
-        print(f"GPU Temp: {gpu.temperature}°C")
-
     canvas.tag_bind(info_y_axis, "<Enter>", on_hover)
     canvas.tag_bind(info_y_axis, "<Leave>", lambda e: globals().update(hovered=False))
     canvas.tag_bind(info_y_axis, "<Button-1>", on_press)
@@ -122,11 +117,35 @@ def ShowSystemInfoGraph():
     canvas.tag_bind(info_x_axis, "<Button-1>", on_press)
     canvas.tag_bind(info_x_axis, "<ButtonRelease-1>", on_release)
 
-def UpdateSystemInfoGraph(gpu_percent):
-    global gpu_graph_points
+def UpdateSystemInfoGraph():
+    global gpu_graph_points, cpu, ram, gpu
 
-    pass
-    
+    print("[DEBUG] Updating system info graph...")
+
+    # CPU
+    #cpu = psutil.cpu_percent(interval=1)
+
+    # RAM
+    #ram = psutil.virtual_memory()
+
+    # GPU
+    gpus = GPUtil.getGPUs()
+
+    # Use the current x-axis y position as the baseline instead of hardcoded 400
+    baseline_y = canvas.coords(info_x_axis)[1]  # y1 of the x-axis line
+
+    new_y = baseline_y - (gpus[0].load * graph_size * 2)
+
+    for i in range(len(gpu_graph_points) - 1, 0, -1):
+        gpu_graph_points[i][1] = gpu_graph_points[i - 1][1]
+    gpu_graph_points[0][1] = new_y
+
+    for i in range(len(gpu_graph_lines)):
+        canvas.coords(gpu_graph_lines[i],
+                  gpu_graph_points[i][0], gpu_graph_points[i][1],
+                  gpu_graph_points[i+1][0], gpu_graph_points[i+1][1])
+
+
 def HandleGUI():
     global overlay_label, info_x_axis, info_y_axis
     
@@ -165,12 +184,24 @@ def MoveOverlay(self):
         if item_tags:
             canvas.move(item_tags[0], dx, dy)
 
+            # Keep gpu_graph_points in sync with the visual position
+            for point in gpu_graph_points:
+                point[0] += dx
+                point[1] += dy
+
         last_x = x
         last_y = y
         canvas.tag_raise(self)
 
+
+old_time_graphs = time.time()
 def StartGUILoop():
+    global old_time_graphs
+    canvas.tag_lower("bg_line")  # Ensure background lines are always at the back
     HandleGUI()
+    if time.time() - old_time_graphs >= .5:  # Update every second
+        UpdateSystemInfoGraph()
+        old_time_graphs = time.time()
     root.after(30, StartGUILoop)
 
 """canvas        = tk.Canvas(root, bg="black", highlightthickness=0)
