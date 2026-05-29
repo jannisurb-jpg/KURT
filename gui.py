@@ -50,7 +50,7 @@ def on_press(e):
 
     item_type = canvas.type(item_id)
 
-    if item_type == "text":
+    if "music_overlay" in canvas.gettags(item_id):
         bbox = canvas.bbox(overlay_label)
         diffX = x - (bbox[0] + bbox[2]) / 2
         diffY = y - (bbox[1] + bbox[3]) / 2
@@ -82,7 +82,7 @@ def CreateBackground():
         y2 = screen_height
         bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
 
-overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"))
+overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay")
 musicBox_outline = canvas.create_rectangle(screen_width/2 - 200, 20, screen_width/2 + 200, 80, outline=text_main_color, width=1)
 def ShowMusicOverlay(title, artist):
     global overlay_label
@@ -196,6 +196,14 @@ def UpdateSystemInfoGraph():
                   gpu_graph_points[i][0], gpu_graph_points[i][1],
                   gpu_graph_points[i+1][0], gpu_graph_points[i+1][1])
 
+todo_list = canvas.create_text(screen_width/2, 100, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="todo_list")
+def UpdateTodoList(list):
+    canvas.itemconfig(todo_list, text=list)
+    
+canvas.tag_bind(todo_list, "<Enter>", on_hover)
+canvas.tag_bind(todo_list, "<Leave>", lambda e: globals().update(hovered=False))
+canvas.tag_bind(todo_list, "<Button-1>", on_press)
+canvas.tag_bind(todo_list, "<ButtonRelease-1>", on_release)
 
 def HandleGUI():
     global overlay_label, info_x_axis, info_y_axis
@@ -218,7 +226,7 @@ def MoveOverlay(self):
     # Check if it's a line or text
     item_type = canvas.type(self)
 
-    if item_type == "text":
+    if "music_overlay" in canvas.gettags(self):
         canvas.itemconfig(self, fill="red")
         canvas.itemconfig(musicBox_outline, outline="red")
         canvas.coords(self, x - diffX, y - diffY)
@@ -228,6 +236,14 @@ def MoveOverlay(self):
 
         canvas.tag_raise(self)
         canvas.tag_raise(musicBox_outline)
+
+    elif "todo_list" in canvas.gettags(self):
+        canvas.itemconfig(self, fill="red")
+        canvas.coords(self, x - diffX, y - diffY)
+
+        bbox = canvas.bbox(self)
+
+        canvas.tag_raise(self)
 
     elif item_type == "line":
         # Move all items with the same tag as a group
@@ -253,7 +269,6 @@ def MoveOverlay(self):
         last_x = x
         last_y = y
         canvas.tag_raise(self)
-
 
 old_time_graphs = time.time()
 def StartGUILoop():

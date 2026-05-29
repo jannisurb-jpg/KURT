@@ -38,7 +38,7 @@ from dotenv import load_dotenv
 
 import requests
 
-from gui import CreateBackground, root, ShowMusicOverlay, StartGUILoop, ShowSystemInfoGraph
+from gui import CreateBackground, root, ShowMusicOverlay, StartGUILoop, ShowSystemInfoGraph, UpdateTodoList
 
 def ensure_ollama():
     try:
@@ -935,6 +935,15 @@ def handle_modes(command):
 
     return False
 
+def get_todos():
+    all_todos = subprocess.run(
+        ["todo", "-list"],
+        capture_output=True,
+        text=True,
+        encoding="cp850"
+    )
+    UpdateTodoList(all_todos.stdout)
+
 def dispatch_command(command):
     detected_a_cmd = False
     """Verteilt den erkannten Befehl an die passende Handler-Funktion."""
@@ -986,6 +995,12 @@ def dispatch_command(command):
             ["todo", "-create", new_todo]
         )
         
+        get_todos()
+        detected_a_cmd = True
+
+    if "alle" in cmd_low and "todo" in cmd_low:
+        get_todos()
+
         detected_a_cmd = True
 
     detected_a_cmd = detected_a_cmd or handle_media(command)
