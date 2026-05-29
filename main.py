@@ -979,6 +979,15 @@ def dispatch_command(command):
         pyautogui.typewrite('^', interval=0.05)
         detected_a_cmd = True
 
+    if "todo" in cmd_low and "neue" in cmd_low:
+        new_todo = createAnswer(f"Extrahiere die Kernaufgabe aus diesem Satz in maximal 3 Wörtern. Antworte NUR mit den Wörtern, kein 'Aufgabe:', keine Erklärung, nichts anderes.: {cmd_low}")
+        print(f"[INFO] Erstelle Todo: {new_todo}")
+        subprocess.run(
+            ["todo", "-create", new_todo]
+        )
+        
+        detected_a_cmd = True
+
     detected_a_cmd = detected_a_cmd or handle_media(command)
     detected_a_cmd = detected_a_cmd or handle_volume(command)
     detected_a_cmd = detected_a_cmd or handle_modes(command)

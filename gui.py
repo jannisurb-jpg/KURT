@@ -4,6 +4,8 @@ import tkinter as tk
 import psutil
 import GPUtil
 
+import threading
+
 devMode = True
 text_main_color  = "#00ccff"
 gpu_graph_color = "#ff000d"
@@ -133,14 +135,24 @@ def ShowSystemInfoGraph():
     canvas.tag_bind(info_x_axis, "<Button-1>", on_press)
     canvas.tag_bind(info_x_axis, "<ButtonRelease-1>", on_release)
 
+def update_stats_thread():
+    global cpu, ram, gpu
+    while True:
+        cpu = psutil.cpu_percent(interval=1)  # blocking is fine in a thread
+        ram = psutil.virtual_memory()
+        gpus = GPUtil.getGPUs()
+        gpu = gpus[0].load if gpus else 0
+        time.sleep(0.5)
+
+threading.Thread(target=update_stats_thread, daemon=True).start()
+
 def UpdateSystemInfoGraph():
     global gpu_graph_points, cpu, ram, gpu
 
-    print("[DEBUG] Updating system info graph...")
+    if cpu is None or ram is None or gpu is None:
+        return
 
-    # CPU
-    cpu = psutil.cpu_percent(interval=1)
-
+    #CPU
     # Use the current x-axis y position as the baseline instead of hardcoded 400
     baseline_y = canvas.coords(info_x_axis)[1]  # y1 of the x-axis line
 
@@ -154,10 +166,7 @@ def UpdateSystemInfoGraph():
         canvas.coords(cpu_graph_lines[i],
                   cpu_graph_points[i][0], cpu_graph_points[i][1],
                   cpu_graph_points[i+1][0], cpu_graph_points[i+1][1])
-
-    # RAM
-    ram = psutil.virtual_memory()
-
+    #RAM
     # Use the current x-axis y position as the baseline instead of hardcoded 400
     baseline_y = canvas.coords(info_x_axis)[1]  # y1 of the x-axis line
 
@@ -173,12 +182,10 @@ def UpdateSystemInfoGraph():
                   ram_graph_points[i+1][0], ram_graph_points[i+1][1])
 
     # GPU
-    gpus = GPUtil.getGPUs()
-
     # Use the current x-axis y position as the baseline instead of hardcoded 400
     baseline_y = canvas.coords(info_x_axis)[1]  # y1 of the x-axis line
 
-    new_y = baseline_y - (gpus[0].load * graph_size)
+    new_y = baseline_y - (gpu * graph_size)
 
     for i in range(len(gpu_graph_points) - 1, 0, -1):
         gpu_graph_points[i][1] = gpu_graph_points[i - 1][1]
