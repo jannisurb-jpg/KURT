@@ -105,6 +105,41 @@ activeIndexForInnerIndicator = 0
 direction_while_talking = 1
 direction_while_talking_jarvis = 1
 
+valid_commands = ["1 show_todo", "2 create_todo", "3 delete_todo", "4 shutoff_ai", "5 open a programm", "6 play music", "7 pause music"]
+
+command_prompt = """Classify the user's intent into exactly one category. Reply with ONLY the category number, nothing else.
+
+Categories:
+0  = unclear              (nothing fits confidently)
+
+--- To-Do ---
+1  = todo_show            (viewing, listing, or asking about existing tasks)
+2  = todo_create          (add or save a new task)
+3  = todo_delete          (remove or complete a task)
+
+--- Music ---
+4  = music_play           (start or resume playback)
+5  = music_pause          (pause or stop playback)
+6 = music_skip           (skip to the next song)
+7 = music_previous       (go back to the previous song)
+8 = music_volume_up      (increase the volume)
+9 = music_volume_down    (decrease the volume)
+10 = music_volume_set     (set volume to a specific value)
+
+--- System ---
+11  = system_shutdown_ai   (close or stop the assistant)
+12  = system_restart_ai    (restart the assistant)
+13  = system_open_program  (launch an application or file)
+14 = system_coding_mode   (switch to coding mode)
+
+--- Info ---
+15  = info_search          (search the web or google something)
+16 = info_time            (ask for the current time)
+17 = info_news            (ask for todays news)
+
+Reply with one or two digits only!!!
+USER INPUT: """
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Monitor Setup
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1060,7 +1095,7 @@ def clap_detection_loop():
 
         time.sleep(0.005)  # 5ms – viel schneller als 30ms
 
-threading.Thread(target=clap_detection_loop, daemon=True).start()
+#threading.Thread(target=clap_detection_loop, daemon=True).start()
 
 def AskAiForResponse(command):
     print("I am too stupid, let me ask someone smarter")
@@ -1071,6 +1106,113 @@ def log(text):
     with open("log.txt", "a", encoding="utf-8") as f:
         f.write(text + "\n")
         f.flush()
+
+def AskOllamaWhatToDo(command):
+    cmd_low = command.lower()
+
+    res = requests.post("http://localhost:11434/api/generate", json={
+        "model": "phi3:mini",
+        "prompt": command_prompt + command,
+        "stream": False
+    })
+    cmd = res.json()["response"]
+    cmd = cmd[:2]
+    print(cmd)
+
+    if int(cmd) == 1:
+        get_todos()
+
+    elif int(cmd) == 2:
+        new_todo = createAnswer(f"Extrahiere die Kernaufgabe aus diesem Satz in maximal 3 Wörtern. Antworte NUR mit den Wörtern, kein 'Aufgabe:', keine Erklärung, nichts anderes.: {command}")
+        print(f"[INFO] Erstelle Todo: {new_todo}")
+        subprocess.run(
+            ["todo", "-create", new_todo]
+        )
+        
+        get_todos()
+
+    elif int(cmd) == 3:
+        pass
+
+    elif int(cmd) == 4 or int(cmd) == 5:
+        press_key(VK_MEDIA_PLAY_PAUSE)
+        time.sleep(0.5)
+        asyncio.run(get_media())
+
+    elif int(cmd) == 6:
+        press_key(VK_MEDIA_NEXT_TRACK)
+        time.sleep(0.5)
+        asyncio.run(get_media())
+
+    elif int(cmd) == 7:
+        press_key(VK_MEDIA_PREV_TRACK)
+        time.sleep(0.5)
+        asyncio.run(get_media())
+
+    elif int(cmd) == 8:
+        current = volume.GetMasterVolumeLevelScalar()
+        volume.SetMasterVolumeLevelScalar(min(current + 0.1, 1.0), None)
+
+    elif int(cmd) == 9:
+        current = volume.GetMasterVolumeLevelScalar()
+        volume.SetMasterVolumeLevelScalar(max(current - 0.1, 0.0), None)
+
+    elif int(cmd) == 10:
+        try:
+            desired_volume = None
+            for word in cmd_low.split():
+                num = text_to_number(word)
+                print(num)
+                if num is not None:
+                    desired_volume = num
+            if desired_volume is not None:
+                volume.SetMasterVolumeLevelScalar(desired_volume / 100, None)
+        except Exception:
+            print("Unklarer Lautstärke-Befehl.")
+            speak_to_me("Unklarer Lautstärke-Befehl. Bitte lauter oder leiser sagen.")
+
+    elif int(cmd) == 11:
+        print("Programm beendet.")
+
+    elif int(cmd) == 12:
+        subprocess.Popen('start cmd /k "timeout /t 5 && python "D:\Programmier Projekte\Python Projekte\Jarvis\main.py""', shell=True)
+        os.system("taskkill /f /pid " + str(os.getpid()))
+
+    elif int(cmd) == 13:
+        handle_window_commands()
+
+    elif int(cmd) == 14:
+        print("Letzter Programmier Modus aktiviert!")
+        speak_to_me("Letzter Programmier Modus aktiviert! Viel Spaß beim Programmieren!")
+
+        # Song starten (URI)
+        devices = sp.devices()
+        device_id = devices['devices'][0]['id']
+
+        sp.start_playback(
+            device_id=device_id,
+            uris=["spotify:track:08mG3Y1vljYA6bvDt4Wqkj"]
+        )
+
+        subprocess.Popen("code --new-window", shell=True)
+        open_chrome("https://claude.ai", False)
+        time.sleep(2)   #wait till window is open
+
+        hwnd, score = find_best_window("Visual Studio Code", True)
+
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        time.sleep(0.1)
+        win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        
+    elif int(cmd) == 15:
+        handle_search(command)
+
+    elif int(cmd) == 16:
+        handle_time(command)
+
+    elif int(cmd) == 17:
+        handle_news(command)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HAUPTSCHLEIFE
@@ -1102,7 +1244,10 @@ def main_loop():
                 command = " ".join(text.strip().split()[position + 1:])
                 print("Command:", command)
 
-                running = dispatch_command(command)
+                running = True
+                AskOllamaWhatToDo(command)
+
+                #running = dispatch_command(command)
                 if not running:
                     break
 
