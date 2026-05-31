@@ -140,6 +140,8 @@ Categories:
 Reply with one or two digits only!!!
 USER INPUT: """
 
+max_cmds = 17
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Monitor Setup
 # ─────────────────────────────────────────────────────────────────────────────
@@ -717,9 +719,20 @@ def handle_easter_egg(command):
     )
 
 def handle_search(command):
-    search_query = command[11:].strip()
+    search_query = createAnswer(f"""
+                                    You are an AI assistant specialized in converting conversational voice-to-text transcripts into clean, optimized web search queries.
+
+                                    Analyze the following spoken transcript and output ONLY the single best search query. Follow these strict rules:
+                                    1. Strip out all conversational filler, pleasantries, or meta-commentary (e.g., "Hey Google", "Can you search for", "I want to find", "um", "uh").
+                                    2. Correct any obvious phonetic typos or speech-to-text misunderstandings based on the context.
+                                    3. Keep the query concise, using only the essential keywords needed for a modern search engine.
+                                    4. Output nothing but the final search query text. Do not include quotes, explanations, intro text, or markdown formatting.
+
+                                    Spoken Transcript: "{command}"
+                                    Search Query(in the same language as the transcript):
+                                """)
     print(f"Suche nach: {search_query}")
-    show_status(f"Suche nach: {search_query}")
+
     open_chrome(f"https://www.google.com/search?q={search_query.replace(' ', '+')}", False)
 
 def handle_window_commands(command):
@@ -1107,17 +1120,17 @@ def log(text):
         f.write(text + "\n")
         f.flush()
 
+session = requests.Session()
 def AskOllamaWhatToDo(command):
     cmd_low = command.lower()
 
-    res = requests.post("http://localhost:11434/api/generate", json={
-        "model": "phi3:mini",
-        "prompt": command_prompt + command,
-        "stream": False
-    })
-    cmd = res.json()["response"]
-    cmd = cmd[:2]
-    print(cmd)
+    raw = createAnswer(command_prompt + command).strip()
+
+    cmd = int(''.join(filter(str.isdigit, raw)))
+    if cmd > max_cmds:
+        cmd = 0
+
+    print(f"Raw: '{raw}' → cmd: {cmd}")
 
     if int(cmd) == 1:
         get_todos()
@@ -1179,7 +1192,7 @@ def AskOllamaWhatToDo(command):
         os.system("taskkill /f /pid " + str(os.getpid()))
 
     elif int(cmd) == 13:
-        handle_window_commands()
+        handle_window_commands(cmd_low)
 
     elif int(cmd) == 14:
         print("Letzter Programmier Modus aktiviert!")

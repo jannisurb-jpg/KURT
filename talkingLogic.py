@@ -68,25 +68,14 @@ def get_news_command():
 session = requests.Session()
 
 def createAnswer(cmd):
-    messages.append({"role": "user", "content": cmd})
-
-    starting_time = datetime.now()
-
-    response = session.post(
-        "http://localhost:11434/api/chat",
-        json={
-            "model": "phi3:mini",
-            "messages": messages,
-            "stream": False,
-            "keep_alive": "5m",
-            "options": {
-                "temperature": 0.2
-            }
+    res = session.post("http://localhost:11434/api/generate", json={
+        "model": "mistral",
+        "prompt": cmd,
+        "stream": False,
+        "keep_alive": "10m",
+        "options": {
+            "temperature": 0.0
         }
-    )
-
-    assistant_msg = response.json()["message"]
-    messages.append(assistant_msg)
-
-    print(f"Zeit: {datetime.now() - starting_time}")
-    return assistant_msg["content"]
+    })
+    assistant_msg = res.json()["response"]
+    return assistant_msg
