@@ -39,6 +39,7 @@ from dotenv import load_dotenv
 import requests
 
 from gui import CreateBackground, root, ShowMusicOverlay, StartGUILoop, ShowSystemInfoGraph, UpdateTodoList
+import gui
 
 def ensure_ollama():
     try:
@@ -1233,6 +1234,7 @@ def AskOllamaWhatToDo(command):
     elif int(cmd) == 17:
         handle_news(command)
 
+    gui.current_state = 0
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HAUPTSCHLEIFE
@@ -1259,6 +1261,7 @@ def main_loop():
 
         if isAwakening:
             print("[DEBUG] Wake word erkannt!")
+            gui.current_state = 1
             last_time_talking_to_jarvis = datetime.now()
             if current_jarvis_mode != "sleeping":
                 command = " ".join(text.strip().split()[position + 1:])

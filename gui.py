@@ -36,6 +36,8 @@ last_x = 0
 last_y = 0
 graph_size = 150
 
+current_state = 0
+
 def on_hover(e):
     global hovered, item_id
     item_id = canvas.find_withtag("current")[0]
@@ -99,6 +101,8 @@ breathing_speed = .02
 max_radius = 100
 min_radius = 30
 
+rotation_speed = .05
+
 neurons = [] #neuron, angle, radius
 cx, cy = screen_width//2, screen_height//2
 for i in range(neurons_quantity): 
@@ -115,26 +119,6 @@ for i in range(neurons_quantity):
     canvas.tag_bind(neuron, "<Leave>", lambda e: globals().update(hovered=False))
     canvas.tag_bind(neuron, "<Button-1>", on_press)
     canvas.tag_bind(neuron, "<ButtonRelease-1>", on_release)
-
-#Create the connecting lines
-connecting_lines = []
-"""for i in range(len(neurons)):
-    neuron_position = [canvas.coords(neurons[i][0])[0], canvas.coords(neurons[i][0])[1]]
-
-    for j in range(len(neurons)):
-        connecting_neuron_position = [canvas.coords(neurons[j][0])[0], canvas.coords(neurons[j][0])[1]]
-
-        dist_vector2 = [connecting_neuron_position[0] - neuron_position[0], connecting_neuron_position[1] - neuron_position[1]]
-        dist_vector2_norm = math.sqrt(dist_vector2[0]**2 + dist_vector2[1]**2)
-
-        if dist_vector2_norm <= max_range_for_connection and i == i + 1:
-            connecting_line = canvas.create_line(neuron_position[0], neuron_position[1], neuron_position[0] + dist_vector2[0], neuron_position[1] + dist_vector2[1], fill=neuron_color, tags="logo")
-            connecting_lines.append([connecting_line, i, j])
-
-            canvas.tag_bind(connecting_line, "<Enter>", on_hover)
-            canvas.tag_bind(connecting_line, "<Leave>", lambda e: globals().update(hovered=False))
-            canvas.tag_bind(connecting_line, "<Button-1>", on_press)
-            canvas.tag_bind(connecting_line, "<ButtonRelease-1>", on_release)"""
 
 
 def ControlKURTState(state, should_grow):
@@ -162,14 +146,22 @@ def ControlKURTState(state, should_grow):
 
         new_x = cx + new_radius * math.cos(angle)
         new_y = cy + new_radius * math.sin(angle)
-        positions[i] = (new_x, new_y)  # cache it
 
         canvas.coords(neurons[i][0], new_x - neurons_size/2, new_y - neurons_size/2, new_x + neurons_size/2, new_y + neurons_size/2)
 
-    for i in range(len(connecting_lines)):
-        x1, y1 = positions[connecting_lines[i][1]]
-        x2, y2 = positions[connecting_lines[i][2]]
-        canvas.coords(connecting_lines[i][0], x1, y1, x2, y2)
+    if state == 1:
+        for i in range(len(neurons)):
+            angle = neurons[i][1]
+            radius = neurons[i][2]
+
+            new_angle = angle + rotation_speed
+
+            neurons[i][1] = new_angle
+
+            new_x = cx + radius * math.cos(new_angle)
+            new_y = cy + radius * math.sin(new_angle)
+
+            canvas.coords(neurons[i][0], new_x - neurons_size/2, new_y - neurons_size/2, new_x + neurons_size/2, new_y + neurons_size/2)
     
     return grow_instead or shrink_instead
 
@@ -380,7 +372,7 @@ def StartGUILoop():
 
     if time.time() - old_time_breathing >= .05:
         if not is_holding:
-            grow_state = ControlKURTState(0, supposed_to_grow)
+            grow_state = ControlKURTState(current_state, supposed_to_grow)
 
             if grow_state is True:
                 supposed_to_grow = not supposed_to_grow
