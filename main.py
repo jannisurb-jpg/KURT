@@ -105,8 +105,6 @@ activeIndexForInnerIndicator = 0
 direction_while_talking = 1
 direction_while_talking_jarvis = 1
 
-valid_commands = ["1 show_todo", "2 create_todo", "3 delete_todo", "4 shutoff_ai", "5 open a programm", "6 play music", "7 pause music"]
-
 command_prompt = """Classify the user's intent into exactly one category. Reply with ONLY the category number, nothing else.
 
 Categories:
@@ -1145,7 +1143,16 @@ def AskOllamaWhatToDo(command):
         get_todos()
 
     elif int(cmd) == 3:
-        pass
+        raw = createAnswer("Just return the number in the prompt as a digit. Return nothing else. Prompt:" + cmd_low)
+
+        todo_to_delete = ''.join(filter(str.isdigit, raw))
+        print(f"[DEBUG] Deleting todo {todo_to_delete}")
+
+        subprocess.run(
+            ["todo", "-delete", todo_to_delete]
+        )
+
+        get_todos()
 
     elif int(cmd) == 4 or int(cmd) == 5:
         press_key(VK_MEDIA_PLAY_PAUSE)
