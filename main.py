@@ -1276,8 +1276,4 @@ def main_loop():
 
 # Thread starten
 threading.Thread(target=main_loop, daemon=True).start()
-
-# waveAnim NICHT in Thread – direkt mit after() aufrufen
-current_jarvis_mode = "idle" #"idle". "speaking", "listening"
-
 root.mainloop()

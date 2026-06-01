@@ -14,6 +14,7 @@ text_main_color  = "#00ccff"
 gpu_graph_color = "#ff000d"
 ram_graph_color = "#00ff1a"
 cpu_graph_color = "#1a00ff"
+outline_color = "white"
 
 root = tk.Tk()
 root.title("Jarvis")
@@ -59,6 +60,10 @@ def on_press(e):
         bbox = canvas.bbox(overlay_label)
         diffX = x - (bbox[0] + bbox[2]) / 2
         diffY = y - (bbox[1] + bbox[3]) / 2
+    elif "time_overlay" in canvas.gettags(item_id):
+        bbox = canvas.bbox(time_label)
+        diffX = x - (bbox[0] + bbox[2]) / 2
+        diffY = y - (bbox[1] + bbox[3]) / 2
     else:
         # For lines/groups, diff from mouse position directly
         diffX = 0
@@ -87,7 +92,17 @@ def CreateBackground():
         y2 = screen_height
         bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
 
+def CreateOutline(bottom_left, top_right, width, height, tag):
+    visible_outline = .3
 
+    y_length = height * visible_outline
+    x_length = width * visible_outline
+
+    x_btm_left = canvas.create_line(bottom_left[0], bottom_left[1], bottom_left[0] + x_length, bottom_left[1], fill=outline_color, tags=tag)
+    y_btm_left = canvas.create_line(bottom_left[0], bottom_left[1], bottom_left[0], bottom_left[1] + y_length, fill=outline_color, tags=tag)
+
+    x_top_right = canvas.create_line(top_right[0], top_right[1], top_right[0] - x_length, top_right[1], fill=outline_color, tags=tag)
+    y_top_right = canvas.create_line(top_right[0], top_right[1], top_right[0], top_right[1] - y_length, fill=outline_color, tags=tag)
 
 #Visualization of KURT
 inner_KURT_ring = 40
@@ -119,7 +134,6 @@ for i in range(neurons_quantity):
     canvas.tag_bind(neuron, "<Leave>", lambda e: globals().update(hovered=False))
     canvas.tag_bind(neuron, "<Button-1>", on_press)
     canvas.tag_bind(neuron, "<ButtonRelease-1>", on_release)
-
 
 def ControlKURTState(state, should_grow):
     grow_instead = False
@@ -165,8 +179,20 @@ def ControlKURTState(state, should_grow):
     
     return grow_instead or shrink_instead
 
-overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay")
-musicBox_outline = canvas.create_rectangle(screen_width/2 - 200, 20, screen_width/2 + 200, 80, outline=text_main_color, width=1)
+#Create Time Widget
+time_label = canvas.create_text(screen_width/2, screen_height - 150, text="00:00", fill=text_main_color, font=("Arial", 15, "bold"), tags="time_overlay", width=350)
+CreateOutline([screen_width/2 - 50, screen_height - 130], [screen_width/2 + 50, screen_height - 170], 100, -40, "time_outline")
+
+canvas.tag_bind(time_label, "<Enter>", on_hover)
+canvas.tag_bind(time_label, "<Leave>", lambda e: globals().update(hovered=False))
+canvas.tag_bind(time_label, "<Button-1>", on_press)
+canvas.tag_bind(time_label, "<ButtonRelease-1>", on_release)
+
+def RefreshTimeWidget():
+    canvas.itemconfig(time_label, text=time.strftime("%H:%M"))
+
+overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay", width=350)
+CreateOutline([screen_width/2 - 175, 10], [screen_width/2 + 175, 90], 350, 80, "music_outline")
 def ShowMusicOverlay(title, artist):
     global overlay_label
     overlay_text = f"🎵 {title} - {artist}"
@@ -179,6 +205,8 @@ def ShowMusicOverlay(title, artist):
 
 info_y_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300, 400 - graph_size, fill=text_main_color, width=2, tags="info_axis")
 info_x_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300 + graph_size, 400, fill=text_main_color, width=2, tags="info_axis")
+
+CreateOutline([screen_width - 325, 425], [screen_width - 275 + graph_size, 375 - graph_size], graph_size, -graph_size, "graph_outline")
 
 gpu_graph_points = []
 gpu_graph_lines = []
@@ -295,7 +323,8 @@ def HandleGUI():
         MoveOverlay(item_id)
     else:
         canvas.itemconfig(overlay_label, fill=text_main_color)
-        canvas.itemconfig(musicBox_outline, outline=text_main_color)
+        canvas.itemconfig("logo", fill=neuron_color)
+        canvas.itemconfig("time_overlay", fill=neuron_color)
 
 def MoveOverlay(self):
     global last_x, last_y, cx, cy
@@ -311,14 +340,25 @@ def MoveOverlay(self):
 
     if "music_overlay" in canvas.gettags(self):
         canvas.itemconfig(self, fill="red")
-        canvas.itemconfig(musicBox_outline, outline="red")
         canvas.coords(self, x - diffX, y - diffY)
-
-        bbox = canvas.bbox(self)
-        canvas.coords(musicBox_outline, bbox[0] - 10, bbox[1] - 10, bbox[2] + 10, bbox[3] + 10)
+        canvas.move("music_outline", dx, dy)
 
         canvas.tag_raise(self)
-        canvas.tag_raise(musicBox_outline)
+        canvas.tag_raise("music_outline")
+
+        last_x = x
+        last_y = y
+
+    elif "time_overlay" in canvas.gettags(self):
+        canvas.itemconfig(self, fill="red")
+        canvas.coords(self, x - diffX, y - diffY)
+        canvas.move("time_outline", dx, dy)
+
+        canvas.tag_raise(self)
+        canvas.tag_raise("time_outline")
+
+        last_x = x
+        last_y = y
 
     elif "todo_list" in canvas.gettags(self):
         canvas.itemconfig(self, fill="red")
@@ -330,6 +370,7 @@ def MoveOverlay(self):
 
     elif "logo" in canvas.gettags(self):
         canvas.move("logo", dx, dy)
+        canvas.itemconfig("logo", fill="red")
         cx += dx
         cy += dy
         last_x = x
@@ -340,6 +381,7 @@ def MoveOverlay(self):
         item_tags = canvas.gettags(self)
         if item_tags:
             canvas.move(item_tags[0], dx, dy)
+            canvas.move("graph_outline", dx, dy)
 
             # Keep gpu_graph_points in sync with the visual position
             for point in gpu_graph_points:
@@ -381,6 +423,7 @@ def StartGUILoop():
 
     if time.time() - old_time_graphs >= .5:
         UpdateSystemInfoGraph()
+        RefreshTimeWidget()
 
         old_time_graphs = time.time()
     root.after(30, StartGUILoop)
