@@ -6,6 +6,9 @@ import GPUtil
 
 import threading
 
+import random
+import math
+
 devMode = True
 text_main_color  = "#00ccff"
 gpu_graph_color = "#ff000d"
@@ -81,6 +84,87 @@ def CreateBackground():
         x2 = x
         y2 = screen_height
         bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
+
+
+
+#Visualization of KURT
+inner_KURT_ring = 40
+outer_KURT_ring = 80
+max_range_for_connection = 20
+neurons_size = 5
+neurons_quantity = 150
+neuron_color = "red"
+
+breathing_speed = .02
+max_radius = 100
+min_radius = 30
+
+neurons = [] #neuron, angle, radius
+cx, cy = screen_width//2, screen_height//2
+for i in range(neurons_quantity): 
+    angle = random.random() * 2 * math.pi
+    radius = math.sqrt(random.random() * (outer_KURT_ring**2 - inner_KURT_ring**2) + inner_KURT_ring**2)
+
+    x = cx + radius * math.cos(angle)
+    y = cy + radius * math.sin(angle)
+
+    neuron = canvas.create_oval(x - neurons_size/2, y - neurons_size/2, x + neurons_size/2, y + neurons_size/2, fill=neuron_color)
+    neurons.append([neuron, angle, radius])
+
+#Create the connecting lines
+connecting_lines = []
+for i in range(len(neurons)):
+    neuron_position = [canvas.coords(neurons[i][0])[0], canvas.coords(neurons[i][0])[1]]
+
+    for j in range(len(neurons)):
+        connecting_neuron_position = [canvas.coords(neurons[j][0])[0], canvas.coords(neurons[j][0])[1]]
+
+        dist_vector2 = [connecting_neuron_position[0] - neuron_position[0], connecting_neuron_position[1] - neuron_position[1]]
+        dist_vector2_norm = math.sqrt(dist_vector2[0]**2 + dist_vector2[1]**2)
+
+        if dist_vector2_norm <= max_range_for_connection:
+            connecting_line = canvas.create_line(neuron_position[0], neuron_position[1], neuron_position[0] + dist_vector2[0], neuron_position[1] + dist_vector2[1], fill=neuron_color)
+            connecting_lines.append([connecting_line, i, j])
+
+
+def ControlKURTState(state, should_grow):
+    grow_instead = False
+    shrink_instead = False
+    for i in range(len(neurons)):
+        angle = neurons[i][1]
+        radius = neurons[i][2]
+
+        new_radius = 0
+        if not should_grow:
+            new_radius = radius * (1 - breathing_speed)
+        else:
+            new_radius = radius * (1 + breathing_speed)
+
+        if new_radius <= min_radius and should_grow is False:
+            grow_instead = True
+
+        if new_radius >= max_radius and should_grow is True:
+            shrink_instead = True
+
+        neurons[i][2] = new_radius
+
+        new_x = cx + new_radius * math.cos(angle)
+        new_y = cy + new_radius * math.sin(angle)
+
+        canvas.coords(neurons[i][0], new_x - neurons_size/2, new_y - neurons_size/2, new_x + neurons_size/2, new_y + neurons_size/2)
+
+    for i in range(len(connecting_lines)):
+        connecting_points1 = [canvas.coords(neurons[connecting_lines[i][1]][0])[0], canvas.coords(neurons[connecting_lines[i][1]][0])[1]]
+        connecting_points2 = [canvas.coords(neurons[connecting_lines[i][2]][0])[0], canvas.coords(neurons[connecting_lines[i][2]][0])[1]]
+
+        canvas.coords(connecting_lines[i][0], connecting_points1[0], connecting_points1[1], connecting_points2[0], connecting_points2[1])
+    
+    if grow_instead is False and shrink_instead is False:
+        return False
+    else:
+        return True
+
+
 
 overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay")
 musicBox_outline = canvas.create_rectangle(screen_width/2 - 200, 20, screen_width/2 + 200, 80, outline=text_main_color, width=1)
@@ -271,12 +355,26 @@ def MoveOverlay(self):
         canvas.tag_raise(self)
 
 old_time_graphs = time.time()
+old_time_breathing = time.time()
+supposed_to_grow = True
 def StartGUILoop():
-    global old_time_graphs
+    global old_time_graphs, supposed_to_grow, old_time_breathing
+
     canvas.tag_lower("bg_line")  # Ensure background lines are always at the back
+
     HandleGUI()
-    if time.time() - old_time_graphs >= .5:  # Update every second
+
+    if time.time() - old_time_breathing >= .05:
+        grow_state = ControlKURTState(0, supposed_to_grow)
+
+        if grow_state is True:
+            supposed_to_grow = not supposed_to_grow
+        
+        old_time_breathing = time.time()
+
+    if time.time() - old_time_graphs >= .5:
         UpdateSystemInfoGraph()
+
         old_time_graphs = time.time()
     root.after(30, StartGUILoop)
 
