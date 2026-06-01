@@ -93,7 +93,7 @@ outer_KURT_ring = 80
 max_range_for_connection = 20
 neurons_size = 5
 neurons_quantity = 150
-neuron_color = "red"
+neuron_color = "#00ccff"
 
 breathing_speed = .02
 max_radius = 100
@@ -108,12 +108,17 @@ for i in range(neurons_quantity):
     x = cx + radius * math.cos(angle)
     y = cy + radius * math.sin(angle)
 
-    neuron = canvas.create_oval(x - neurons_size/2, y - neurons_size/2, x + neurons_size/2, y + neurons_size/2, fill=neuron_color)
+    neuron = canvas.create_oval(x - neurons_size/2, y - neurons_size/2, x + neurons_size/2, y + neurons_size/2, fill=neuron_color, tags="logo")
     neurons.append([neuron, angle, radius])
+
+    canvas.tag_bind(neuron, "<Enter>", on_hover)
+    canvas.tag_bind(neuron, "<Leave>", lambda e: globals().update(hovered=False))
+    canvas.tag_bind(neuron, "<Button-1>", on_press)
+    canvas.tag_bind(neuron, "<ButtonRelease-1>", on_release)
 
 #Create the connecting lines
 connecting_lines = []
-for i in range(len(neurons)):
+"""for i in range(len(neurons)):
     neuron_position = [canvas.coords(neurons[i][0])[0], canvas.coords(neurons[i][0])[1]]
 
     for j in range(len(neurons)):
@@ -122,49 +127,51 @@ for i in range(len(neurons)):
         dist_vector2 = [connecting_neuron_position[0] - neuron_position[0], connecting_neuron_position[1] - neuron_position[1]]
         dist_vector2_norm = math.sqrt(dist_vector2[0]**2 + dist_vector2[1]**2)
 
-        if dist_vector2_norm <= max_range_for_connection:
-            connecting_line = canvas.create_line(neuron_position[0], neuron_position[1], neuron_position[0] + dist_vector2[0], neuron_position[1] + dist_vector2[1], fill=neuron_color)
+        if dist_vector2_norm <= max_range_for_connection and i == i + 1:
+            connecting_line = canvas.create_line(neuron_position[0], neuron_position[1], neuron_position[0] + dist_vector2[0], neuron_position[1] + dist_vector2[1], fill=neuron_color, tags="logo")
             connecting_lines.append([connecting_line, i, j])
+
+            canvas.tag_bind(connecting_line, "<Enter>", on_hover)
+            canvas.tag_bind(connecting_line, "<Leave>", lambda e: globals().update(hovered=False))
+            canvas.tag_bind(connecting_line, "<Button-1>", on_press)
+            canvas.tag_bind(connecting_line, "<ButtonRelease-1>", on_release)"""
 
 
 def ControlKURTState(state, should_grow):
     grow_instead = False
     shrink_instead = False
+    
+    # Store computed positions to reuse for lines
+    positions = {}
+    
     for i in range(len(neurons)):
         angle = neurons[i][1]
         radius = neurons[i][2]
 
-        new_radius = 0
         if not should_grow:
             new_radius = radius * (1 - breathing_speed)
         else:
             new_radius = radius * (1 + breathing_speed)
 
-        if new_radius <= min_radius and should_grow is False:
+        if new_radius <= min_radius and not should_grow:
             grow_instead = True
-
-        if new_radius >= max_radius and should_grow is True:
+        if new_radius >= max_radius and should_grow:
             shrink_instead = True
 
         neurons[i][2] = new_radius
 
         new_x = cx + new_radius * math.cos(angle)
         new_y = cy + new_radius * math.sin(angle)
+        positions[i] = (new_x, new_y)  # cache it
 
         canvas.coords(neurons[i][0], new_x - neurons_size/2, new_y - neurons_size/2, new_x + neurons_size/2, new_y + neurons_size/2)
 
     for i in range(len(connecting_lines)):
-        connecting_points1 = [canvas.coords(neurons[connecting_lines[i][1]][0])[0], canvas.coords(neurons[connecting_lines[i][1]][0])[1]]
-        connecting_points2 = [canvas.coords(neurons[connecting_lines[i][2]][0])[0], canvas.coords(neurons[connecting_lines[i][2]][0])[1]]
-
-        canvas.coords(connecting_lines[i][0], connecting_points1[0], connecting_points1[1], connecting_points2[0], connecting_points2[1])
+        x1, y1 = positions[connecting_lines[i][1]]
+        x2, y2 = positions[connecting_lines[i][2]]
+        canvas.coords(connecting_lines[i][0], x1, y1, x2, y2)
     
-    if grow_instead is False and shrink_instead is False:
-        return False
-    else:
-        return True
-
-
+    return grow_instead or shrink_instead
 
 overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay")
 musicBox_outline = canvas.create_rectangle(screen_width/2 - 200, 20, screen_width/2 + 200, 80, outline=text_main_color, width=1)
@@ -299,7 +306,7 @@ def HandleGUI():
         canvas.itemconfig(musicBox_outline, outline=text_main_color)
 
 def MoveOverlay(self):
-    global last_x, last_y
+    global last_x, last_y, cx, cy
 
     x = root.winfo_pointerx()
     y = root.winfo_pointery()
@@ -323,11 +330,18 @@ def MoveOverlay(self):
 
     elif "todo_list" in canvas.gettags(self):
         canvas.itemconfig(self, fill="red")
-        canvas.coords(self, x - diffX, y - diffY)
+        canvas.coords(self, x - dx, y - dy)
 
         bbox = canvas.bbox(self)
 
         canvas.tag_raise(self)
+
+    elif "logo" in canvas.gettags(self):
+        canvas.move("logo", dx, dy)
+        cx += dx
+        cy += dy
+        last_x = x
+        last_y = y
 
     elif item_type == "line":
         # Move all items with the same tag as a group
@@ -354,21 +368,22 @@ def MoveOverlay(self):
         last_y = y
         canvas.tag_raise(self)
 
+    canvas.tag_lower("bg_line") 
+
 old_time_graphs = time.time()
 old_time_breathing = time.time()
 supposed_to_grow = True
 def StartGUILoop():
-    global old_time_graphs, supposed_to_grow, old_time_breathing
-
-    canvas.tag_lower("bg_line")  # Ensure background lines are always at the back
+    global old_time_graphs, supposed_to_grow, old_time_breathing # Ensure background lines are always at the back
 
     HandleGUI()
 
     if time.time() - old_time_breathing >= .05:
-        grow_state = ControlKURTState(0, supposed_to_grow)
+        if not is_holding:
+            grow_state = ControlKURTState(0, supposed_to_grow)
 
-        if grow_state is True:
-            supposed_to_grow = not supposed_to_grow
+            if grow_state is True:
+                supposed_to_grow = not supposed_to_grow
         
         old_time_breathing = time.time()
 
