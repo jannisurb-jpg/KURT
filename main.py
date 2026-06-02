@@ -50,7 +50,7 @@ def ensure_ollama():
 
 ensure_ollama()
 
-
+#region Variables
 name = "KURT" #Künstliche Universelle Reaktions-Technologie
 not_wanted_wake_words = ["ja"]
 debug = False
@@ -140,6 +140,7 @@ Reply with one or two digits only!!!
 USER INPUT: """
 
 max_cmds = 17
+#endregion
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Monitor Setup

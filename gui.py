@@ -7,6 +7,7 @@ import threading
 import random
 import math
 import time
+from datetime import datetime
 
 #Other
 import tkinter as tk
@@ -54,7 +55,7 @@ old_time_graphs = time.time()
 old_time_breathing = time.time()
 supposed_to_grow = True
 
-devMode = True
+devMode = False
 #endregion
 
 #region Creating window
@@ -139,7 +140,7 @@ def CreateOutline(bottom_left, top_right, width, height, tag):
 #Visualization of KURT
 def CreateKURT():
     global cx,cy, neurons
-    cx, cy = screen_width//2, screen_height//2
+    cx, cy = screen_width - outer_KURT_ring - 50, screen_height - outer_KURT_ring - 50
     for i in range(neurons_quantity): 
         angle = random.random() * 2 * math.pi
         radius = math.sqrt(random.random() * (outer_KURT_ring**2 - inner_KURT_ring**2) + inner_KURT_ring**2)
@@ -158,8 +159,8 @@ def CreateKURT():
 #Create time widget
 def CreateTimeWidget():
     global time_label
-    time_label = canvas.create_text(screen_width/2, screen_height - 150, text="00:00", fill=text_main_color, font=("Arial", 15, "bold"), tags="time_overlay", width=350)
-    CreateOutline([screen_width/2 - 50, screen_height - 130], [screen_width/2 + 50, screen_height - 170], 100, -40, "time_outline")
+    time_label = canvas.create_text(screen_width/2, 50, text="00:00", fill=text_main_color, font=("Arial", 15, "bold"), tags="time_overlay", width=350, justify="center")
+    CreateOutline([screen_width/2 - 75, 80], [screen_width/2 + 75, 20], 150, -60, "time_outline")
 
     canvas.tag_bind(time_label, "<Enter>", on_hover)
     canvas.tag_bind(time_label, "<Leave>", lambda e: globals().update(hovered=False))
@@ -169,20 +170,22 @@ def CreateTimeWidget():
 #Create music widget
 def CreateMusicWidget():
     global overlay_label
-    overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay", width=350)
-    CreateOutline([screen_width/2 - 175, 10], [screen_width/2 + 175, 90], 350, 80, "music_outline")
+    overlay_label = canvas.create_text(200, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay", width=350)
+    CreateOutline([25, 10], [375, 90], 350, 80, "music_outline")
 
 def ShowSystemInfoGraph():
     global info_x_axis, info_y_axis, gpu_graph_points, gpu_graph_lines, cpu_graph_points, cpu_graph_lines, ram_graph_points, ram_graph_lines
-    info_y_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300, 400 - graph_size, fill=text_main_color, width=2, tags="info_axis")
-    info_x_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300 + graph_size, 400, fill=text_main_color, width=2, tags="info_axis")
+    origin_x, origin_y = 50, screen_height - 50
 
-    CreateOutline([screen_width - 325, 425], [screen_width - 275 + graph_size, 375 - graph_size], graph_size, -graph_size, "graph_outline")
+    info_y_axis = canvas.create_line(origin_x, origin_y, origin_x, origin_y - graph_size, fill=text_main_color, width=2, tags="info_axis")
+    info_x_axis = canvas.create_line(origin_x, origin_y, origin_x + graph_size, origin_y, fill=text_main_color, width=2, tags="info_axis")
+
+    CreateOutline([origin_x - 25, origin_y + 25], [origin_x + 25 + graph_size, origin_y - 25 - graph_size], graph_size, -graph_size, "graph_outline")
 
     gpu_graph_points = []
     gpu_graph_lines = []
     for i in range(graph_size):
-        gpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
+        gpu_graph_points.append([origin_x + graph_size - i, origin_y])
 
     for i in range(graph_size - 1):
         gpu_graph_lines.append(canvas.create_line(gpu_graph_points[i][0], gpu_graph_points[i][1], gpu_graph_points[i + 1][0], gpu_graph_points[i + 1][1], fill=gpu_graph_color, width=1, tags="info_axis"))
@@ -190,7 +193,7 @@ def ShowSystemInfoGraph():
     ram_graph_points = []
     ram_graph_lines = []
     for i in range(graph_size):
-        ram_graph_points.append([screen_width - 300 + graph_size - i, 400])
+        ram_graph_points.append([origin_x + graph_size - i, origin_y])
 
     for i in range(graph_size - 1):
         ram_graph_lines.append(canvas.create_line(ram_graph_points[i][0], ram_graph_points[i][1], ram_graph_points[i + 1][0], ram_graph_points[i + 1][1], fill=ram_graph_color, width=1, tags="info_axis"))
@@ -198,7 +201,7 @@ def ShowSystemInfoGraph():
     cpu_graph_points = []
     cpu_graph_lines = []
     for i in range(graph_size):
-        cpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
+        cpu_graph_points.append([origin_x + graph_size - i, origin_y])
 
     for i in range(graph_size - 1):
         cpu_graph_lines.append(canvas.create_line(cpu_graph_points[i][0], cpu_graph_points[i][1], cpu_graph_points[i + 1][0], cpu_graph_points[i + 1][1], fill=cpu_graph_color, width=1, tags="info_axis"))
@@ -278,7 +281,9 @@ def ControlKURTState(state, should_grow):
         return grow_instead or shrink_instead
 
 def RefreshTimeWidget():
-    canvas.itemconfig(time_label, text=time.strftime("%H:%M"))
+    text = time.strftime("%H:%M") + "\n" + datetime.now().strftime("%d/%m/%Y")
+
+    canvas.itemconfig(time_label, text=text)
 
 def update_stats_thread():
     global cpu, ram, gpu
