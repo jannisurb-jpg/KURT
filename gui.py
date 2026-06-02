@@ -115,6 +115,10 @@ def on_press(e):
         bbox = canvas.bbox(time_label)
         diffX = x - (bbox[0] + bbox[2]) / 2
         diffY = y - (bbox[1] + bbox[3]) / 2
+    elif "todo_list" in canvas.gettags(item_id):
+        bbox = canvas.bbox(todo_list)
+        diffX = x - (bbox[0] + bbox[2]) / 2
+        diffY = y - (bbox[1] + bbox[3]) / 2
     else:
         # For lines/groups, diff from mouse position directly
         diffX = 0
@@ -363,7 +367,8 @@ def HandleGUI():
     else:
         canvas.itemconfig(overlay_label, fill=text_main_color)
         canvas.itemconfig("logo", fill=neuron_color)
-        canvas.itemconfig("time_overlay", fill=neuron_color)
+        canvas.itemconfig("time_overlay", fill=text_main_color)
+        canvas.itemconfig("todo_list", fill=text_main_color)
 
 def MoveOverlay(self):
     global last_x, last_y, cx, cy
@@ -401,11 +406,14 @@ def MoveOverlay(self):
 
     elif "todo_list" in canvas.gettags(self):
         canvas.itemconfig(self, fill="red")
-        canvas.coords(self, x - dx, y - dy)
+        canvas.coords(self, x - diffX, y - diffY)
+        #canvas.move("music_outline", dx, dy)
 
         bbox = canvas.bbox(self)
 
         canvas.tag_raise(self)
+        last_x = x
+        last_y = y
 
     elif "logo" in canvas.gettags(self):
         canvas.move("logo", dx, dy)

@@ -127,7 +127,7 @@ Categories:
 
 --- System ---
 11  = system_shutdown_ai   (close or stop the assistant)
-12  = system_restart_ai    (restart the assistant)
+12  = system_restart_ai    (restart the assistant/yourself)
 13  = system_open_program  (launch an application or file)
 14 = system_coding_mode   (switch to coding mode)
 
