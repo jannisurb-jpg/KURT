@@ -1,21 +1,63 @@
-import time
-import tkinter as tk
-
+#System
 import psutil
 import GPUtil
-
 import threading
 
+#Math
 import random
 import math
+import time
 
-devMode = True
+#Other
+import tkinter as tk
+
+#region Varaibles
+#Colors
 text_main_color  = "#00ccff"
 gpu_graph_color = "#ff000d"
 ram_graph_color = "#00ff1a"
 cpu_graph_color = "#1a00ff"
-outline_color = "white"
+outline_color = "#FFFFFF"
 
+#Drag and Drop
+hovered = False
+item_id = 0
+is_holding = False
+diffX = 0
+diffY = 0
+last_x = 0
+last_y = 0
+
+#Graph Widget
+graph_size = 150
+cpu = None
+ram = None
+gpu = None
+
+#KURT Widget
+current_state = 0
+inner_KURT_ring = 40
+outer_KURT_ring = 80
+max_range_for_connection = 20
+neurons_size = 5
+neurons_quantity = 150
+neuron_color = "#00ccff"
+
+breathing_speed = .02
+max_radius = 100
+min_radius = 30
+rotation_speed = .05
+neurons = [] #neuron, angle, radius
+
+#Start
+old_time_graphs = time.time()
+old_time_breathing = time.time()
+supposed_to_grow = True
+
+devMode = True
+#endregion
+
+#region Creating window
 root = tk.Tk()
 root.title("Jarvis")
 if not devMode:
@@ -28,17 +70,25 @@ canvas.pack(fill="both", expand=True)
 screen_width = root.winfo_screenwidth()
 screen_height = root.winfo_screenheight()
 
-hovered = False
-item_id = 0
-is_holding = False
-diffX = 0
-diffY = 0
-last_x = 0
-last_y = 0
-graph_size = 150
+def CreateBackground(howManyBackgroundLines):
+    for i in range(howManyBackgroundLines):
+        y = i * (screen_height / howManyBackgroundLines)
+        x1 = 0
+        y1 = y
+        x2 = screen_width
+        y2 = y
+        bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
 
-current_state = 0
+    for i in range(howManyBackgroundLines):
+        x = i * (screen_width / howManyBackgroundLines)
+        x1 = x
+        y1 = 0
+        x2 = x
+        y2 = screen_height
+        bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
+#endregion
 
+#Drag and Drop functions
 def on_hover(e):
     global hovered, item_id
     item_id = canvas.find_withtag("current")[0]
@@ -73,25 +123,7 @@ def on_release(e):
     global is_holding
     is_holding = False
 
-def CreateBackground():
-    howManyBackgroundLines = 30
-
-    for i in range(howManyBackgroundLines):
-        y = i * (screen_height / howManyBackgroundLines)
-        x1 = 0
-        y1 = y
-        x2 = screen_width
-        y2 = y
-        bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
-
-    for i in range(howManyBackgroundLines):
-        x = i * (screen_width / howManyBackgroundLines)
-        x1 = x
-        y1 = 0
-        x2 = x
-        y2 = screen_height
-        bgLine = canvas.create_line(x1, y1, x2, y2, fill="#202020", width=2, tags="bg_line")
-
+#Creating widgets
 def CreateOutline(bottom_left, top_right, width, height, tag):
     visible_outline = .3
 
@@ -105,137 +137,72 @@ def CreateOutline(bottom_left, top_right, width, height, tag):
     y_top_right = canvas.create_line(top_right[0], top_right[1], top_right[0], top_right[1] - y_length, fill=outline_color, tags=tag)
 
 #Visualization of KURT
-inner_KURT_ring = 40
-outer_KURT_ring = 80
-max_range_for_connection = 20
-neurons_size = 5
-neurons_quantity = 150
-neuron_color = "#00ccff"
+def CreateKURT():
+    global cx,cy, neurons
+    cx, cy = screen_width//2, screen_height//2
+    for i in range(neurons_quantity): 
+        angle = random.random() * 2 * math.pi
+        radius = math.sqrt(random.random() * (outer_KURT_ring**2 - inner_KURT_ring**2) + inner_KURT_ring**2)
 
-breathing_speed = .02
-max_radius = 100
-min_radius = 30
+        x = cx + radius * math.cos(angle)
+        y = cy + radius * math.sin(angle)
 
-rotation_speed = .05
+        neuron = canvas.create_oval(x - neurons_size/2, y - neurons_size/2, x + neurons_size/2, y + neurons_size/2, fill=neuron_color, tags="logo")
+        neurons.append([neuron, angle, radius])
 
-neurons = [] #neuron, angle, radius
-cx, cy = screen_width//2, screen_height//2
-for i in range(neurons_quantity): 
-    angle = random.random() * 2 * math.pi
-    radius = math.sqrt(random.random() * (outer_KURT_ring**2 - inner_KURT_ring**2) + inner_KURT_ring**2)
+        canvas.tag_bind(neuron, "<Enter>", on_hover)
+        canvas.tag_bind(neuron, "<Leave>", lambda e: globals().update(hovered=False))
+        canvas.tag_bind(neuron, "<Button-1>", on_press)
+        canvas.tag_bind(neuron, "<ButtonRelease-1>", on_release)
 
-    x = cx + radius * math.cos(angle)
-    y = cy + radius * math.sin(angle)
+#Create time widget
+def CreateTimeWidget():
+    global time_label
+    time_label = canvas.create_text(screen_width/2, screen_height - 150, text="00:00", fill=text_main_color, font=("Arial", 15, "bold"), tags="time_overlay", width=350)
+    CreateOutline([screen_width/2 - 50, screen_height - 130], [screen_width/2 + 50, screen_height - 170], 100, -40, "time_outline")
 
-    neuron = canvas.create_oval(x - neurons_size/2, y - neurons_size/2, x + neurons_size/2, y + neurons_size/2, fill=neuron_color, tags="logo")
-    neurons.append([neuron, angle, radius])
+    canvas.tag_bind(time_label, "<Enter>", on_hover)
+    canvas.tag_bind(time_label, "<Leave>", lambda e: globals().update(hovered=False))
+    canvas.tag_bind(time_label, "<Button-1>", on_press)
+    canvas.tag_bind(time_label, "<ButtonRelease-1>", on_release)
 
-    canvas.tag_bind(neuron, "<Enter>", on_hover)
-    canvas.tag_bind(neuron, "<Leave>", lambda e: globals().update(hovered=False))
-    canvas.tag_bind(neuron, "<Button-1>", on_press)
-    canvas.tag_bind(neuron, "<ButtonRelease-1>", on_release)
-
-def ControlKURTState(state, should_grow):
-    grow_instead = False
-    shrink_instead = False
-    
-    # Store computed positions to reuse for lines
-    positions = {}
-    
-    for i in range(len(neurons)):
-        angle = neurons[i][1]
-        radius = neurons[i][2]
-
-        if not should_grow:
-            new_radius = radius * (1 - breathing_speed)
-        else:
-            new_radius = radius * (1 + breathing_speed)
-
-        if new_radius <= min_radius and not should_grow:
-            grow_instead = True
-        if new_radius >= max_radius and should_grow:
-            shrink_instead = True
-
-        neurons[i][2] = new_radius
-
-        new_x = cx + new_radius * math.cos(angle)
-        new_y = cy + new_radius * math.sin(angle)
-
-        canvas.coords(neurons[i][0], new_x - neurons_size/2, new_y - neurons_size/2, new_x + neurons_size/2, new_y + neurons_size/2)
-
-    if state == 1:
-        for i in range(len(neurons)):
-            angle = neurons[i][1]
-            radius = neurons[i][2]
-
-            new_angle = angle + rotation_speed
-
-            neurons[i][1] = new_angle
-
-            new_x = cx + radius * math.cos(new_angle)
-            new_y = cy + radius * math.sin(new_angle)
-
-            canvas.coords(neurons[i][0], new_x - neurons_size/2, new_y - neurons_size/2, new_x + neurons_size/2, new_y + neurons_size/2)
-    
-    return grow_instead or shrink_instead
-
-#Create Time Widget
-time_label = canvas.create_text(screen_width/2, screen_height - 150, text="00:00", fill=text_main_color, font=("Arial", 15, "bold"), tags="time_overlay", width=350)
-CreateOutline([screen_width/2 - 50, screen_height - 130], [screen_width/2 + 50, screen_height - 170], 100, -40, "time_outline")
-
-canvas.tag_bind(time_label, "<Enter>", on_hover)
-canvas.tag_bind(time_label, "<Leave>", lambda e: globals().update(hovered=False))
-canvas.tag_bind(time_label, "<Button-1>", on_press)
-canvas.tag_bind(time_label, "<ButtonRelease-1>", on_release)
-
-def RefreshTimeWidget():
-    canvas.itemconfig(time_label, text=time.strftime("%H:%M"))
-
-overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay", width=350)
-CreateOutline([screen_width/2 - 175, 10], [screen_width/2 + 175, 90], 350, 80, "music_outline")
-def ShowMusicOverlay(title, artist):
+#Create music widget
+def CreateMusicWidget():
     global overlay_label
-    overlay_text = f"🎵 {title} - {artist}"
-    canvas.itemconfig(overlay_label, text=overlay_text)
+    overlay_label = canvas.create_text(screen_width/2, 50, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="music_overlay", width=350)
+    CreateOutline([screen_width/2 - 175, 10], [screen_width/2 + 175, 90], 350, 80, "music_outline")
 
-    canvas.tag_bind(overlay_label, "<Enter>", on_hover)
-    canvas.tag_bind(overlay_label, "<Leave>", lambda e: globals().update(hovered=False))
-    canvas.tag_bind(overlay_label, "<Button-1>", on_press)
-    canvas.tag_bind(overlay_label, "<ButtonRelease-1>", on_release)
-
-info_y_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300, 400 - graph_size, fill=text_main_color, width=2, tags="info_axis")
-info_x_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300 + graph_size, 400, fill=text_main_color, width=2, tags="info_axis")
-
-CreateOutline([screen_width - 325, 425], [screen_width - 275 + graph_size, 375 - graph_size], graph_size, -graph_size, "graph_outline")
-
-gpu_graph_points = []
-gpu_graph_lines = []
-for i in range(graph_size):
-    gpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
-
-for i in range(graph_size - 1):
-    gpu_graph_lines.append(canvas.create_line(gpu_graph_points[i][0], gpu_graph_points[i][1], gpu_graph_points[i + 1][0], gpu_graph_points[i + 1][1], fill=gpu_graph_color, width=1, tags="info_axis"))
-
-ram_graph_points = []
-ram_graph_lines = []
-for i in range(graph_size):
-    ram_graph_points.append([screen_width - 300 + graph_size - i, 400])
-
-for i in range(graph_size - 1):
-    ram_graph_lines.append(canvas.create_line(ram_graph_points[i][0], ram_graph_points[i][1], ram_graph_points[i + 1][0], ram_graph_points[i + 1][1], fill=ram_graph_color, width=1, tags="info_axis"))
-
-cpu_graph_points = []
-cpu_graph_lines = []
-for i in range(graph_size):
-    cpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
-
-for i in range(graph_size - 1):
-    cpu_graph_lines.append(canvas.create_line(cpu_graph_points[i][0], cpu_graph_points[i][1], cpu_graph_points[i + 1][0], cpu_graph_points[i + 1][1], fill=cpu_graph_color, width=1, tags="info_axis"))
-
-cpu = None
-ram = None
-gpu = None
 def ShowSystemInfoGraph():
+    global info_x_axis, info_y_axis, gpu_graph_points, gpu_graph_lines, cpu_graph_points, cpu_graph_lines, ram_graph_points, ram_graph_lines
+    info_y_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300, 400 - graph_size, fill=text_main_color, width=2, tags="info_axis")
+    info_x_axis = canvas.create_line(screen_width - 300, 400, screen_width - 300 + graph_size, 400, fill=text_main_color, width=2, tags="info_axis")
+
+    CreateOutline([screen_width - 325, 425], [screen_width - 275 + graph_size, 375 - graph_size], graph_size, -graph_size, "graph_outline")
+
+    gpu_graph_points = []
+    gpu_graph_lines = []
+    for i in range(graph_size):
+        gpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
+
+    for i in range(graph_size - 1):
+        gpu_graph_lines.append(canvas.create_line(gpu_graph_points[i][0], gpu_graph_points[i][1], gpu_graph_points[i + 1][0], gpu_graph_points[i + 1][1], fill=gpu_graph_color, width=1, tags="info_axis"))
+
+    ram_graph_points = []
+    ram_graph_lines = []
+    for i in range(graph_size):
+        ram_graph_points.append([screen_width - 300 + graph_size - i, 400])
+
+    for i in range(graph_size - 1):
+        ram_graph_lines.append(canvas.create_line(ram_graph_points[i][0], ram_graph_points[i][1], ram_graph_points[i + 1][0], ram_graph_points[i + 1][1], fill=ram_graph_color, width=1, tags="info_axis"))
+
+    cpu_graph_points = []
+    cpu_graph_lines = []
+    for i in range(graph_size):
+        cpu_graph_points.append([screen_width - 300 + graph_size - i, 400])
+
+    for i in range(graph_size - 1):
+        cpu_graph_lines.append(canvas.create_line(cpu_graph_points[i][0], cpu_graph_points[i][1], cpu_graph_points[i + 1][0], cpu_graph_points[i + 1][1], fill=cpu_graph_color, width=1, tags="info_axis"))
+    
     canvas.tag_bind(info_y_axis, "<Enter>", on_hover)
     canvas.tag_bind(info_y_axis, "<Leave>", lambda e: globals().update(hovered=False))
     canvas.tag_bind(info_y_axis, "<Button-1>", on_press)
@@ -246,6 +213,73 @@ def ShowSystemInfoGraph():
     canvas.tag_bind(info_x_axis, "<Button-1>", on_press)
     canvas.tag_bind(info_x_axis, "<ButtonRelease-1>", on_release)
 
+def CreateTodoListWidget():
+    global todo_list
+    todo_list = canvas.create_text(screen_width/2, 100, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="todo_list")
+
+    canvas.tag_bind(todo_list, "<Enter>", on_hover)
+    canvas.tag_bind(todo_list, "<Leave>", lambda e: globals().update(hovered=False))
+    canvas.tag_bind(todo_list, "<Button-1>", on_press)
+    canvas.tag_bind(todo_list, "<ButtonRelease-1>", on_release)
+
+#Refresh Widgets
+def ShowMusicOverlay(title, artist):
+    global overlay_label
+    overlay_text = f"🎵 {title} - {artist}"
+    canvas.itemconfig(overlay_label, text=overlay_text)
+
+    canvas.tag_bind(overlay_label, "<Enter>", on_hover)
+    canvas.tag_bind(overlay_label, "<Leave>", lambda e: globals().update(hovered=False))
+    canvas.tag_bind(overlay_label, "<Button-1>", on_press)
+    canvas.tag_bind(overlay_label, "<ButtonRelease-1>", on_release)
+
+def ControlKURTState(state, should_grow):
+        grow_instead = False
+        shrink_instead = False
+        
+        # Store computed positions to reuse for lines
+        positions = {}
+        
+        for i in range(len(neurons)):
+            angle = neurons[i][1]
+            radius = neurons[i][2]
+
+            if not should_grow:
+                new_radius = radius * (1 - breathing_speed)
+            else:
+                new_radius = radius * (1 + breathing_speed)
+
+            if new_radius <= min_radius and not should_grow:
+                grow_instead = True
+            if new_radius >= max_radius and should_grow:
+                shrink_instead = True
+
+            neurons[i][2] = new_radius
+
+            new_x = cx + new_radius * math.cos(angle)
+            new_y = cy + new_radius * math.sin(angle)
+
+            canvas.coords(neurons[i][0], new_x - neurons_size/2, new_y - neurons_size/2, new_x + neurons_size/2, new_y + neurons_size/2)
+
+        if state == 1:
+            for i in range(len(neurons)):
+                angle = neurons[i][1]
+                radius = neurons[i][2]
+
+                new_angle = angle + rotation_speed
+
+                neurons[i][1] = new_angle
+
+                new_x = cx + radius * math.cos(new_angle)
+                new_y = cy + radius * math.sin(new_angle)
+
+                canvas.coords(neurons[i][0], new_x - neurons_size/2, new_y - neurons_size/2, new_x + neurons_size/2, new_y + neurons_size/2)
+        
+        return grow_instead or shrink_instead
+
+def RefreshTimeWidget():
+    canvas.itemconfig(time_label, text=time.strftime("%H:%M"))
+
 def update_stats_thread():
     global cpu, ram, gpu
     while True:
@@ -254,8 +288,6 @@ def update_stats_thread():
         gpus = GPUtil.getGPUs()
         gpu = gpus[0].load if gpus else 0
         time.sleep(0.5)
-
-threading.Thread(target=update_stats_thread, daemon=True).start()
 
 def UpdateSystemInfoGraph():
     global gpu_graph_points, cpu, ram, gpu
@@ -307,14 +339,16 @@ def UpdateSystemInfoGraph():
                   gpu_graph_points[i][0], gpu_graph_points[i][1],
                   gpu_graph_points[i+1][0], gpu_graph_points[i+1][1])
 
-todo_list = canvas.create_text(screen_width/2, 100, text="", fill=text_main_color, font=("Arial", 15, "bold"), tags="todo_list")
 def UpdateTodoList(list):
     canvas.itemconfig(todo_list, text=list)
-    
-canvas.tag_bind(todo_list, "<Enter>", on_hover)
-canvas.tag_bind(todo_list, "<Leave>", lambda e: globals().update(hovered=False))
-canvas.tag_bind(todo_list, "<Button-1>", on_press)
-canvas.tag_bind(todo_list, "<ButtonRelease-1>", on_release)
+
+#Start and refresh global
+threading.Thread(target=update_stats_thread, daemon=True).start()
+CreateKURT()
+CreateTimeWidget()
+CreateMusicWidget()
+ShowSystemInfoGraph()
+CreateTodoListWidget()
 
 def HandleGUI():
     global overlay_label, info_x_axis, info_y_axis
@@ -404,9 +438,6 @@ def MoveOverlay(self):
 
     canvas.tag_lower("bg_line") 
 
-old_time_graphs = time.time()
-old_time_breathing = time.time()
-supposed_to_grow = True
 def StartGUILoop():
     global old_time_graphs, supposed_to_grow, old_time_breathing # Ensure background lines are always at the back
 
@@ -427,74 +458,3 @@ def StartGUILoop():
 
         old_time_graphs = time.time()
     root.after(30, StartGUILoop)
-
-"""canvas        = tk.Canvas(root, bg="black", highlightthickness=0)
-canvas.pack(fill="both", expand=True)
-#overlay_label = canvas.create_text(960, 50, text=f"{name} hört zu...", fill="white", font=("Arial", 28, "bold"))
-
-screen_width = root.winfo_screenwidth()
-screen_height = root.winfo_screenheight()
-
-capsule_radius = 100
-
-first_ring_radius = 130
-second_ring_radius = 195
-cx = screen_width - 35 - first_ring_radius / 2
-cy = 35 + first_ring_radius / 2
-
-first_ring_indicator_inner_radius = 75
-first_ring_indicator_outer_radius = 85
-num_lines = 20
-center_of_jarvis_x = screen_width - 50 - (.5 * capsule_radius)
-center_of_jarvis_y = 50 + capsule_radius/2
-
-dot_radius = 10
-
-#capsule = canvas.create_rectangle(screen_width/2 - capsule_width/2, 50, screen_width/2 + capsule_width/2, capsule_radius, outline="blue", width=3)
-capsule = canvas.create_oval(screen_width - 50 - capsule_radius, 50, screen_width - 50, 50 + capsule_radius, fill="#0088ff")
-first_ring = canvas.create_arc(
-    cx - first_ring_radius / 2, cy - first_ring_radius / 2,
-    cx + first_ring_radius / 2, cy + first_ring_radius / 2,
-    start=0, extent=180, style=tk.ARC, outline="#0088ff", width=3
-)
-
-second_ring = canvas.create_arc(
-    cx - second_ring_radius / 2, cy - second_ring_radius / 2,
-    cx + second_ring_radius / 2, cy + second_ring_radius / 2,
-    start=0, extent=300, style=tk.ARC, outline="#00ccff", width=3
-)
-
-first_ring_indicators = []
-
-for i in range(num_lines):
-    angle = math.radians(i * (360 / num_lines))
-    x1 = center_of_jarvis_x + first_ring_indicator_inner_radius * math.cos(angle)
-    y1 = center_of_jarvis_y + first_ring_indicator_inner_radius * math.sin(angle)
-    x2 = center_of_jarvis_x + first_ring_indicator_outer_radius * math.cos(angle)
-    y2 = center_of_jarvis_y + first_ring_indicator_outer_radius * math.sin(angle)
-    if i == num_lines * .25 or i == num_lines *.5 or i == num_lines *.75 or i == num_lines:
-        first_ring_indicator = canvas.create_line(x1, y1, x2, y2, fill="#00ccff", width=5)
-    else:
-        first_ring_indicator = canvas.create_line(x1, y1, x2, y2, fill="#00aaff", width=2)
-    first_ring_indicators.append(first_ring_indicator)
-
-
-center_dot = canvas.create_oval(
-    center_of_jarvis_x - dot_radius,
-    center_of_jarvis_y - dot_radius,
-    center_of_jarvis_x + dot_radius,
-    center_of_jarvis_y + dot_radius,
-    fill="white"
-)
-
-center_outline = canvas.create_oval(
-    center_of_jarvis_x - capsule_radius/2,
-    center_of_jarvis_y - capsule_radius/2,
-    center_of_jarvis_x + capsule_radius/2,
-    center_of_jarvis_y + capsule_radius/2,
-    outline="#00ccff",
-    width=3
-)
-
-reset_pending = False
-reset_time    = 0"""

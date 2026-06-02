@@ -1242,7 +1242,7 @@ def AskOllamaWhatToDo(command):
 def main_loop():
     global speed_of_wave, last_time_talking_to_jarvis, last_time_talking_delta, current_jarvis_mode
 
-    CreateBackground()
+    CreateBackground(30)
     asyncio.run(get_media())
     ShowSystemInfoGraph()
     StartGUILoop()
